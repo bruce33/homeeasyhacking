@@ -87,7 +87,7 @@ ISR(TIMER1_CAPT_vect)
 	if(bit_is_clear(TCCR1B, ICES1))
 	{	// falling edge was detected, HIGH pulse end
 		
-		if(latchStage == 1 && pulseWidth > 230 && pulseWidth < 260)
+		if(latchStage == 1 && pulseWidth > 230 && pulseWidth < 280)
 		{	// advanced protocol latch
 			
 			latchStage = 2;
@@ -169,7 +169,7 @@ ISR(TIMER1_CAPT_vect)
 		
 			latchStage = 1;
 		}
-		else if(latchStage == 2 && pulseWidth > 2550 && pulseWidth < 2700)
+		else if(latchStage == 2 && pulseWidth > 2550 && pulseWidth < 2750)
 		{	// advanced protocol latch
 			
 			latchStage = 3;
