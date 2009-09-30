@@ -164,7 +164,7 @@ ISR(TIMER1_CAPT_vect)
 	else
 	{	// raising edge was detected, LOW pulse end
 		
-		if(latchStage == 0 && pulseWidth > 9480 && pulseWidth < 10350)
+		if(latchStage == 0 && pulseWidth > 9480 && pulseWidth < 11500)
 		{	// pause between messages
 		
 			latchStage = 1;
