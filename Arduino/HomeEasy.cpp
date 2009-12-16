@@ -1,8 +1,18 @@
 
 #include "HomeEasy.h"
 
-// the input put for the receiver
-int interuptPin = 8;
+// for backwards compatibility
+#ifndef PINB0
+  #define PINB0 PB0
+#endif
+#ifndef PINB5
+  #define PINB5 PB5
+#endif
+
+#define TRANSMITTER_MESSAGE_COUNT 5
+
+#define MESSAGE_TYPE_SIMPLE 0
+#define MESSAGE_TYPE_ADVANCED 1
 
 // variables used for receiving the messages
 unsigned int pulseWidth = 0;
@@ -11,12 +21,15 @@ signed int bitCount = 0;
 byte bit = 0;
 byte prevBit = 0;
 
-// variables for storing the data recieved
+// variables for storing the data received
 unsigned long sender = 0;
 unsigned int recipient = 0;
 byte command = 0;
-unsigned int unit = 0;
 bool group = false;
+
+// variables for sending messages
+byte messageType;
+unsigned int messageCount;
 
 // result handlers
 void (*HomeEasy::simpleProtocolHandler)(unsigned int, unsigned int, bool) = NULL;
@@ -35,11 +48,12 @@ HomeEasy::HomeEasy()
 /**
  * Initialise the system.
  * 
- * Configure the interupt for the receiver.
+ * Enables the receiving of messages.
  */
 void HomeEasy::init()
 {
-	pinMode(interuptPin, INPUT);
+	// ensure the receiver pin is set for input
+	DDRB &= ~_BV(PINB0);
 	
 	// disable PWM (default)
 	TCCR1A = 0x00;
@@ -50,6 +64,28 @@ void HomeEasy::init()
 	
 	// enable input capture interrupt for timer 1
 	TIMSK1 = _BV(ICIE1);
+}
+
+
+/**
+ * Reconfigure the interrupts for sending a message.
+ */
+void HomeEasy::initSending()
+{
+	// ensure the transmitter pin is set for output
+	DDRB |= _BV(PINB5);
+	
+	// the value that the timer will count up to before firing the interrupt
+	OCR1A = (pulseWidth * 2);
+
+	// toggle OC1A on compare match
+	TCCR1A = _BV(COM1A0);
+
+	// CTC mode: top of OCR1A, immediate update of OCR1A, TOV1 flag set on MAX
+	TCCR1B |= _BV(WGM12);
+
+	// enable timer interrupt for timer 1, disable input capture interrupt
+	TIMSK1 = _BV(OCIE1A);
 }
 
 
@@ -72,7 +108,7 @@ void HomeEasy::registerAdvancedProtocolHandler(void(*handler)(unsigned long, uns
 
 
 /**
- * The interupt handler.
+ * The input interrupt handler.
  * 
  * This is where the message is received and decoded.
  */
@@ -247,4 +283,233 @@ ISR(TIMER1_CAPT_vect)
 	
 	// toggle bit value to trigger on the other edge
 	TCCR1B ^= _BV(ICES1);
+}
+
+
+/**
+ * 
+ */
+void HomeEasy::sendSimpleProtocolMessage(unsigned int s, unsigned int r, bool c)
+{
+	// disable all interrupts
+	TIMSK1 = 0;
+	
+	// reset variables
+	messageCount = 0;
+	latchStage = 0;
+	bitCount = 0;
+	bit = 0;
+	prevBit = 0;
+	pulseWidth = 10000;
+	
+	// set data to transmit
+	sender = s;
+	recipient = r;
+	command = (c ? 14 : 6);
+	
+	// specify encoding
+	messageType = MESSAGE_TYPE_SIMPLE;
+	
+	// start the timer interrupt
+	initSending();
+}
+
+
+/**
+ * 
+ */
+void HomeEasy::sendAdvancedProtocolMessage(unsigned long s, unsigned int r, bool c, bool g)
+{
+	// disable all interrupts
+	TIMSK1 = 0;
+	
+	// reset variables
+	messageCount = 0;
+	latchStage = 0;
+	bitCount = 0;
+	bit = 0;
+	prevBit = 0;
+	pulseWidth = 10000;
+	
+	// set data to transmit
+	sender = s;
+	recipient = r;
+	command = c;
+	group = g;
+	
+	// specify encoding
+	messageType = MESSAGE_TYPE_ADVANCED;
+	
+	// start the timer interrupt
+	initSending();
+}
+
+
+/**
+ * The timer interrupt handler.
+ * 
+ * This is where the message is transmitted.
+ * 
+ * The timer interrupt is used to wait for the required length of time.  Each call of this
+ * function toggles the output and determines the length of the time until the function is
+ * called again.
+ * 
+ * Once the message has been transmitted this class will switch back to receiving.
+ */
+ISR(TIMER1_COMPA_vect)
+{
+	if(messageType == MESSAGE_TYPE_SIMPLE)
+	{
+		if(!prevBit && bitCount != 25)
+		{
+			PORTB |= _BV(PINB5);
+		}
+		else
+		{
+			PORTB &= ~_BV(PINB5);
+		}
+		
+		if(bitCount % 2 == 0)
+		{	// every other bit is a zero
+			bit = 0;
+		}
+		else if(bitCount < 8)
+		{	// sender
+			bit = ((sender & _BV((bitCount - 1) / 2)) != 0);
+		}
+		else if(bitCount < 16)
+		{	// recipient
+			bit = ((recipient & _BV((bitCount - 9) / 2)) != 0);
+		}
+		else if(bitCount < 24)
+		{	// command
+			bit = ((command & _BV((bitCount - 17) / 2)) != 0);
+		}
+		
+		if(bitCount == 25)
+		{	// message finished
+			
+			bitCount = 0;
+			messageCount++;
+			
+			pulseWidth = 10000;
+			
+			if(messageCount == 5)
+			{	// go back to receiving
+				
+				messageCount = 0;
+				
+				TCCR1A = 0x00;
+				TCCR1B = 0x02;
+				TIMSK1 = _BV(ICIE1);
+				
+				return;
+			}
+		}
+		else
+		{
+			if(prevBit && bit || !prevBit && !bit)
+			{
+				pulseWidth = 375;
+			}
+			else
+			{
+				pulseWidth = 1125;
+			}
+			
+			if(prevBit)
+			{
+				bitCount++;
+			}
+			
+			prevBit = !prevBit;
+		}
+	}
+	else if(messageType == MESSAGE_TYPE_ADVANCED)
+	{
+		if(!prevBit)
+		{
+			PORTB |= _BV(PINB5);
+		}
+		else
+		{
+			PORTB &= ~_BV(PINB5);
+		}
+		
+		if(!prevBit)
+		{
+			if(bitCount % 2 == 1 || latchStage == 0)
+			{	// every other bit is inverted
+				bit = !bit;
+			}
+			else if(bitCount < 52)
+			{	// sender
+				bit = (((sender << (bitCount / 2)) & 0x02000000) != 0);
+			}
+			else if(bitCount < 54)
+			{	// group
+				bit = group;
+			}
+			else if(bitCount < 56)
+			{	// command
+				bit = command;
+			}
+			else if(bitCount < 64)
+			{	// recipient
+				bit = ((recipient & _BV(31 - (bitCount / 2))) != 0);
+			}
+		}
+		else
+		{
+			if(latchStage == 1)
+			{
+				bitCount++;
+			}
+		}
+		
+		if(!prevBit)
+		{
+			pulseWidth = 235;
+		}
+		else if(latchStage == 0)
+		{
+			pulseWidth = 2650;
+			
+			latchStage = 1;
+		}
+		else if(bitCount > 64)
+		{	// message finished
+			
+			messageCount++;
+			
+			pulseWidth = 10000;
+			latchStage = 0;
+			bitCount = 0;
+		}
+		else if(bit)
+		{
+			pulseWidth = 1180;
+		}
+		else
+		{
+			pulseWidth = 275;
+		}
+		
+		prevBit = !prevBit;
+
+		if(messageCount == 5)
+		{	// go back to receiving
+			
+			messageCount = 0;
+			
+			TCCR1A = 0x00;
+			TCCR1B = 0x02;
+			TIMSK1 = _BV(ICIE1);
+			
+			return;
+		}
+	}
+	
+	// set the next delay
+	OCR1A = (pulseWidth * 2);
 }

@@ -6,10 +6,10 @@
 
 
 /**
- * A class for receiving messages for HomeEasy transmitters.
+ * A class for sending and receiving messages for HomeEasy devices.
  * 
- * This class uses digital pin 8 as the input from the receiver.
- * Timer 1 is used for interupts.
+ * This class uses digital pin 8 as the input from the receiver and pin 13 as the output to the
+ * transmitter.  Timer 1 is used for interrupts.
  */
 class HomeEasy
 {
@@ -43,6 +43,18 @@ class HomeEasy
 		void registerAdvancedProtocolHandler(void(*handler)(unsigned long, unsigned int, bool, bool));
 		
 		
+		/**
+		 * Send a message using the simple protocol.
+		 */
+		void sendSimpleProtocolMessage(unsigned int sender, unsigned int recipient, bool on);
+		
+		
+		/**
+		 * Send a message using the advanced protocol.
+		 */
+		void sendAdvancedProtocolMessage(unsigned long sender, unsigned int recipient, bool on, bool group);
+		
+		
 		// these should be private rather than static
 		static void (*simpleProtocolHandler)(unsigned int, unsigned int, bool);
 		static void (*advancedProtocolHandler)(unsigned long, unsigned int, bool, bool);
@@ -50,19 +62,7 @@ class HomeEasy
 
 	private:
 		
-		int interuptPin;
-		
-		unsigned int pulseWidth;
-		unsigned int latchStage;
-		signed int bitCount;
-		byte bit;
-		byte prevBit;
-		
-		unsigned long sender;
-		unsigned int recipient;
-		byte command;
-		unsigned int unit;
-		bool group;
+		void initSending();
 		
 		static void ignoreSimpleProtocol(unsigned int sender, unsigned int recipient, bool on);
 		static void ignoreAdvancedProtocol(unsigned long sender, unsigned int recipient, bool on, bool group);
