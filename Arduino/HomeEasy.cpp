@@ -1,4 +1,9 @@
-
+/**
+* HomeEasy Library
+*
+* Usage notes : 
+*     By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts).  On your Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 (http://www.arduino.cc/en/Hacking/PinMapping168)
+*/
 #include "HomeEasy.h"
 
 // for backwards compatibility
