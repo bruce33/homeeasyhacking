@@ -2,7 +2,9 @@
 * HomeEasy Library
 *
 * Usage notes : 
-*     By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts).  On your Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 (http://www.arduino.cc/en/Hacking/PinMapping168)
+*     By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts).  On your Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 
+*     There is a degree of configurability for the transmission pin.  We use PORTB, so you must choose a pin on that PORT (PB*) from http://www.arduino.cc/en/Hacking/PinMapping168
+*     To configure the transmitter data pin, define HETXPIN to the pin of choice from PB*
 */
 #include "HomeEasy.h"
 
@@ -12,6 +14,13 @@
 #endif
 #ifndef PINB5
   #define PINB5 PB5
+#endif
+
+#ifndef HETXPIN
+	#define HETXPIN PINB5
+#endif
+#ifndef HERXPIN
+	#define HERXPIN PINB0
 #endif
 
 #define TRANSMITTER_MESSAGE_COUNT 5
@@ -58,7 +67,7 @@ HomeEasy::HomeEasy()
 void HomeEasy::init()
 {
 	// ensure the receiver pin is set for input
-	DDRB &= ~_BV(PINB0);
+	DDRB &= ~_BV(HERXPIN);
 	
 	// disable PWM (default)
 	TCCR1A = 0x00;
@@ -78,7 +87,7 @@ void HomeEasy::init()
 void HomeEasy::initSending()
 {
 	// ensure the transmitter pin is set for output
-	DDRB |= _BV(PINB5);
+	DDRB |= _BV(HETXPIN);
 	
 	// the value that the timer will count up to before firing the interrupt
 	OCR1A = (pulseWidth * 2);
@@ -367,11 +376,11 @@ ISR(TIMER1_COMPA_vect)
 	{
 		if(!prevBit && bitCount != 25)
 		{
-			PORTB |= _BV(PINB5);
+			PORTB |= _BV(HETXPIN);
 		}
 		else
 		{
-			PORTB &= ~_BV(PINB5);
+			PORTB &= ~_BV(HETXPIN);
 		}
 		
 		if(bitCount % 2 == 0)
@@ -434,11 +443,11 @@ ISR(TIMER1_COMPA_vect)
 	{
 		if(!prevBit)
 		{
-			PORTB |= _BV(PINB5);
+			PORTB |= _BV(HETXPIN);
 		}
 		else
 		{
-			PORTB &= ~_BV(PINB5);
+			PORTB &= ~_BV(HETXPIN);
 		}
 		
 		if(!prevBit)
