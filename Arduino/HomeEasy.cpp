@@ -124,7 +124,7 @@ ISR(HE_TIMER_CAPT_vect)
 	if(bit_is_clear(HE_TCCRB, HE_ICES))
 	{	// falling edge was detected, HIGH pulse end
 		
-		if(latchStage == 1 && pulseWidth > 230 && pulseWidth < 280)
+		if(latchStage == 1 && pulseWidth > 200 && pulseWidth < 350)
 		{	// advanced protocol latch
 			
 			latchStage = 2;
@@ -284,10 +284,11 @@ ISR(HE_TIMER_CAPT_vect)
 			latchStage = 1;
 			bbsb2011 = true;
 		}
-		else if(latchStage == 2 && pulseWidth > 2550 && pulseWidth < 2750)
+		else if(latchStage == 2 && pulseWidth > 2350 && pulseWidth < 2750)
 		{	// advanced protocol latch
 			
 			latchStage = 3;
+			sender = 0;
 		}
 		else if(latchStage == 3)
 		{	// advanced protocol data
@@ -305,7 +306,6 @@ ISR(HE_TIMER_CAPT_vect)
 				latchStage = 0;
 				bitCount = 0;
 				
-				sender = 0;
 				recipient = 0;
 			}
 			
