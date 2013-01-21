@@ -1,9 +1,8 @@
-
 #ifndef HomeEasy_h
 #define HomeEasy_h
 
-#include "WProgram.h"
-
+#include "HomeEasyDefines.h"
+#include "Arduino.h"
 
 /**
  * A class for sending and receiving messages for HomeEasy devices.
@@ -66,7 +65,7 @@ class HomeEasy
 		/**
 		 * Send a message using the BBSB2011 protocol.
 		 */
-		void sendBBSB2011Message(unsigned int sender, unsigned int recipient, bool on, bool group);
+		void sendBBSB2011ProtocolMessage(unsigned int sender, unsigned int recipient, bool on, bool group);
 		
 		
 		// these should be private rather than static
@@ -83,4 +82,4 @@ class HomeEasy
 		static void ignoreAdvancedProtocol(unsigned long sender, unsigned int recipient, bool on, bool group);
 };
 
-#endif
+#endif // HomeEasy_h

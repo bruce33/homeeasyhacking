@@ -1,16 +1,16 @@
 /**
-* HomeEasy Library
-*
-* Usage notes : 
-*     By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts) and configured for a standard Arduino.
-*
-*     On a standard Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 
-*      - The transmission pin is configurable, by editing HomeEasyDefines.h - see http://www.arduino.cc/en/Hacking/PinMapping168 to select a port and pin
-*
-*     On an Arduino Mega, you should connect the transmitter data to pin 43 and the receiver data to pin 49
-*      - The receiving pin is configurable, by editing HomeEasyDefines.h - selecting HETIMER4 selects pin 49, and HETIMER5 selects pin 48
-*      - The transmission pin is configurable, by editing HomeEasyDefines.h - see http://arduino.cc/en/uploads/Main/arduino-mega2560-schematic.pdf to select a port and pin
-*/
+ * HomeEasy Library
+ *
+ * Usage notes : 
+ *   By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts) and configured for a standard Arduino.
+ *
+ *   On a standard Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 
+ *   - The transmission pin is configurable, by editing HomeEasyDefines.h - see http://www.arduino.cc/en/Hacking/PinMapping168 to select a port and pin
+ *
+ *   On an Arduino Mega, you should connect the transmitter data to pin 48 and the receiver data to pin 49
+ *   - The receiving pin is configurable, by editing HomeEasyDefines.h - selecting HETIMER4 selects pin 49, and HETIMER5 selects pin 48
+ *   - The transmission pin is configurable, by editing HomeEasyDefines.h - see http://arduino.cc/en/uploads/Main/arduino-mega2560-schematic.pdf to select a port and pin
+ */
 #include "HomeEasyDefines.h"
 #include "HomeEasy.h"
 
@@ -38,89 +38,76 @@ void (*HomeEasy::advancedProtocolHandler)(unsigned long, unsigned int, bool, boo
 void (*HomeEasy::bbsb2011ProtocolHandler)(unsigned int, unsigned int, bool, bool) = NULL;
 
 
-
 /**
  * Constructor
  */
-HomeEasy::HomeEasy()
-{
+HomeEasy::HomeEasy() {
 }
 
-  	
 /**
  * Initialise the system.
  * 
  * Enables the receiving of messages.
  */
-void HomeEasy::init()
-{
-	// ensure the receiver pin is set for input
-	HE_RXDDR &= ~_BV(HE_RXPIN);
-	
-	// disable PWM (default)
-	HE_TCCRA = 0x00;
-	
-	// set prescaler to 1/8.  HE_TCNT increments every 0.5 micro seconds
-	// falling edge used as trigger
-	HE_TCCRB = 0x02;
-	
-	// enable input capture interrupt for HETIMER
-	HE_TIMSK = _BV(HE_ICIE);
+void HomeEasy::init() {
+  // ensure the receiver pin is set for input
+  HE_RXDDR &= ~_BV(HE_RXPIN);
+  
+  // disable PWM (default)
+  HE_TCCRA = 0x00;
+  
+  // set prescaler to 1/8.  HE_TCNT increments every 0.5 micro seconds
+  // falling edge used as trigger
+  HE_TCCRB = _BV(CS21);
+  
+  // enable input capture interrupt for HETIMER
+  HE_TIMSK = _BV(HE_ICIE);
 }
-
 
 /**
  * Reconfigure the interrupts for sending a message.
  */
-void HomeEasy::initSending()
-{
-	// ensure the transmitter pin is set for output
-	HE_TXDDR |= _BV(HETXPIN);
-	
-	// the value that the timer will count up to before firing the interrupt
-	HE_OCRA = (pulseWidth * 2);
+void HomeEasy::initSending() {
+  // ensure the transmitter pin is set for output
+  HE_TXDDR |= _BV(HETXPIN);
 
-	// toggle OCxA on compare match
-	HE_TCCRA = _BV(HE_COMA0);
+  // the value that the timer will count up to before firing the interrupt
+  HE_OCRA = (pulseWidth * 2);
 
-	// CTC mode: top of HE_OCRA, immediate update of HE_OCRA, TOVx flag set on MAX
-	HE_TCCRB |= _BV(HE_WGM2);
+  // toggle OCxA on compare match
+  HE_TCCRA = _BV(HE_COMA0);
 
-	// enable timer interrupt for HETIMER, disable input capture interrupt
-	HE_TIMSK = _BV(HE_OCIEA);
+  // CTC mode: top of HE_OCRA, immediate update of HE_OCRA, TOVx flag set on MAX
+  HE_TCCRB |= _BV(HE_WGM2);
+
+  // enable timer interrupt for HETIMER, disable input capture interrupt
+  HE_TIMSK = _BV(HE_OCIEA);
 }
-
 
 /**
  * Register a handler for the simple protocol messages.
  */
-void HomeEasy::registerSimpleProtocolHandler(void(*handler)(unsigned int, unsigned int, bool))
-{
-	HomeEasy::simpleProtocolHandler = handler;
+void HomeEasy::registerSimpleProtocolHandler(void(*handler)(unsigned int, unsigned int, bool)) {
+  HomeEasy::simpleProtocolHandler = handler;
 }
-
 
 /**
  * Register a handler for the advanced protocol messages.
  */
-void HomeEasy::registerAdvancedProtocolHandler(void(*handler)(unsigned long, unsigned int, bool, bool))
-{
-	HomeEasy::advancedProtocolHandler = handler;
+void HomeEasy::registerAdvancedProtocolHandler(void(*handler)(unsigned long, unsigned int, bool, bool)) {
+  HomeEasy::advancedProtocolHandler = handler;
 }
-
 
 /**
  * Register a handler for the BBSB 2011 protocol messages.
  */
-void HomeEasy::registerBBSB2011ProtocolHandler(void(*handler)(unsigned int, unsigned int, bool, bool))
-{
-	HomeEasy::bbsb2011ProtocolHandler = handler;
+void HomeEasy::registerBBSB2011ProtocolHandler(void(*handler)(unsigned int, unsigned int, bool, bool)) {
+  HomeEasy::bbsb2011ProtocolHandler = handler;
 }
-
 
 /**
  * The input interrupt handler.
- * 
+ *
  * This is where the message is received and decoded.
  */
 ISR(HE_TIMER_CAPT_vect)
@@ -374,9 +361,8 @@ ISR(HE_TIMER_CAPT_vect)
 	HE_TCCRB ^= _BV(HE_ICES);
 }
 
-
 /**
- * 
+ *
  */
 void HomeEasy::sendSimpleProtocolMessage(unsigned int s, unsigned int r, bool c)
 {
@@ -403,9 +389,8 @@ void HomeEasy::sendSimpleProtocolMessage(unsigned int s, unsigned int r, bool c)
 	initSending();
 }
 
-
 /**
- * 
+ *
  */
 void HomeEasy::sendAdvancedProtocolMessage(unsigned long s, unsigned int r, bool c, bool g)
 {
@@ -436,41 +421,35 @@ void HomeEasy::sendAdvancedProtocolMessage(unsigned long s, unsigned int r, bool
 /**
  *
  */
-void HomeEasy::sendBBSB2011Message(unsigned int s, unsigned int r, bool c, bool g) {
-	// disable all interrupts
-	HE_TIMSK = 0;
-	
-	// reset variables
-	messageCount = 0;
-	latchStage = 0;
-	bitCount = 0;
-	bit = 0;
-	prevBit = 0;
-	pulseWidth = 10000;
-	
-	// set data to transmit
-	sender = s;
-	if (g)
-	{
-		recipient = 1;
-	}
-	else if (r & 0x4)
-	{
-		recipient = 14 - (2 * r);
-	}
-	else
-	{
-		recipient = 9 - (2 * r);
-	}
-	command = c;
-	
-	// specify encoding
-	messageType = MESSAGE_TYPE_BBSB2011;
-	
-	// start the timer interrupt
-	initSending();
-}
+void HomeEasy::sendBBSB2011ProtocolMessage(unsigned int s, unsigned int r, bool c, bool g) {
+  // disable all interrupts
+  HE_TIMSK = 0;
 
+  // reset variables
+  messageCount = 0;
+  latchStage = 0;
+  bitCount = 0;
+  bit = 0;
+  prevBit = 0;
+  pulseWidth = 10000;
+
+  // set data to transmit
+  sender = s;
+  if (g) {
+    recipient = 1;
+  } else if (r & 0x4) {
+    recipient = 14 - (2 * r);
+  } else {
+    recipient = 9 - (2 * r);
+  }
+  command = c;
+
+  // specify encoding
+  messageType = MESSAGE_TYPE_BBSB2011;
+
+  // start the timer interrupt
+  initSending();
+}
 
 /**
  * The timer interrupt handler.

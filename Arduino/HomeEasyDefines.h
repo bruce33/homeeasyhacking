@@ -44,8 +44,10 @@
 // The board is a mega
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
   // Defaults for an Arduino Mega
-  #if HETIMER == HETIMER1
+  #if HETIMER == HETIMER1 // Set to Standard defaults, replace with Mega defaults
     #undef HETIMER
+    #undef HETXPORT
+    #undef HETXPIN
   #endif
   #ifndef HETIMER
     #define HETIMER HETIMER4
@@ -69,18 +71,14 @@
   // Defaults for a standard Arduino
   #ifndef HETIMER
     #define HETIMER HETIMER1
-  #else
+  #elif HETIMER != HETIMER1 // Still set to Mega defaults, replace with Standard defaults
     #undef HETIMER
     #define HETIMER HETIMER1
-  #endif
-  #if HETXPORT == HEPORTL
     #undef HETXPORT
+    #undef HETXPIN
   #endif
   #ifndef HETXPORT
     #define HETXPORT HEPORTB
-  #endif
-  #if HETXPIN == PINL1
-    #undef HETXPIN
   #endif
   #ifndef HETXPIN
     #define HETXPIN PINB5
