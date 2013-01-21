@@ -44,6 +44,14 @@ class HomeEasy
 		
 		
 		/**
+		 * Register a handler for the BBSB 2011 protocol messages.  The given function will be called
+		 * when a message has been received and the data contained within the message will be passed
+		 * as parameters.
+		 */
+		void registerBBSB2011ProtocolHandler(void(*handler)(unsigned int, unsigned int, bool, bool));
+		
+		
+		/**
 		 * Send a message using the simple protocol.
 		 */
 		void sendSimpleProtocolMessage(unsigned int sender, unsigned int recipient, bool on);
@@ -55,9 +63,16 @@ class HomeEasy
 		void sendAdvancedProtocolMessage(unsigned long sender, unsigned int recipient, bool on, bool group);
 		
 		
+		/**
+		 * Send a message using the BBSB2011 protocol.
+		 */
+		void sendBBSB2011Message(unsigned int sender, unsigned int recipient, bool on, bool group);
+		
+		
 		// these should be private rather than static
 		static void (*simpleProtocolHandler)(unsigned int, unsigned int, bool);
 		static void (*advancedProtocolHandler)(unsigned long, unsigned int, bool, bool);
+		static void (*bbsb2011ProtocolHandler)(unsigned int, unsigned int, bool, bool);
 
 
 	private:

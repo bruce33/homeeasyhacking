@@ -18,6 +18,7 @@ void setup()
 	
 	homeEasy.registerSimpleProtocolHandler(printSimpleResult);
 	homeEasy.registerAdvancedProtocolHandler(printAdvancedResult);
+	homeEasy.registerBBSB2011ProtocolHandler(printBBSB2011Result);
 	
 	homeEasy.init();
 }
@@ -78,6 +79,27 @@ void printSimpleResult(unsigned int sender, unsigned int recipient, bool on)
 	Serial.println();
 }
 
+/**
+ * Print the details of the BBSB 2011 protocol message.
+ */
+void printBBSB2011Result(unsigned int sender, unsigned int recipient, bool on, bool group)
+{
+	Serial.println("bbsb2011 protocol message");
+	
+	Serial.print("sender ");
+	Serial.println(sender);
+	
+	Serial.print("recipient ");
+	Serial.println(recipient);
+	
+	Serial.print("on ");
+	Serial.println(on);
+	
+	Serial.print("group ");
+	Serial.println(group);
+	
+	Serial.println();
+}
 
 /**
  * Gets a simple message from the Serial port and transmits it

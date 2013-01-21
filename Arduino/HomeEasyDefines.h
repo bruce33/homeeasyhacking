@@ -33,9 +33,9 @@
 //  - PINB1 - PINB7, where HEPORTB is the port selected for HETXPORT
 ///////////////////////////////
 
-//#define HETIMER HETIMER1
-//#define HETXPORT HEPORTB
-//#define HETXPIN PINB5
+#define HETIMER HETIMER4
+#define HETXPORT HEPORTL
+#define HETXPIN PINL1
 
 ///////////////////////////////
 // End of required changes
@@ -73,8 +73,14 @@
     #undef HETIMER
     #define HETIMER HETIMER1
   #endif
+  #if HETXPORT == HEPORTL
+    #undef HETXPORT
+  #endif
   #ifndef HETXPORT
     #define HETXPORT HEPORTB
+  #endif
+  #if HETXPIN == PINL1
+    #undef HETXPIN
   #endif
   #ifndef HETXPIN
     #define HETXPIN PINB5
@@ -189,5 +195,6 @@
 
 #define MESSAGE_TYPE_SIMPLE 0
 #define MESSAGE_TYPE_ADVANCED 1
+#define MESSAGE_TYPE_BBSB2011 2
 
 #endif // HomeEasyDefines_h

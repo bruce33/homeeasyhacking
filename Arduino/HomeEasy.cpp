@@ -17,6 +17,7 @@
 // variables used for receiving the messages
 unsigned int pulseWidth = 0;
 unsigned int latchStage = 0;
+bool bbsb2011 = false;
 signed int bitCount = 0;
 byte bit = 0;
 byte prevBit = 0;
@@ -34,6 +35,7 @@ unsigned int messageCount;
 // result handlers
 void (*HomeEasy::simpleProtocolHandler)(unsigned int, unsigned int, bool) = NULL;
 void (*HomeEasy::advancedProtocolHandler)(unsigned long, unsigned int, bool, bool) = NULL;
+void (*HomeEasy::bbsb2011ProtocolHandler)(unsigned int, unsigned int, bool, bool) = NULL;
 
 
 
@@ -108,6 +110,15 @@ void HomeEasy::registerAdvancedProtocolHandler(void(*handler)(unsigned long, uns
 
 
 /**
+ * Register a handler for the BBSB 2011 protocol messages.
+ */
+void HomeEasy::registerBBSB2011ProtocolHandler(void(*handler)(unsigned int, unsigned int, bool, bool))
+{
+	HomeEasy::bbsb2011ProtocolHandler = handler;
+}
+
+
+/**
  * The input interrupt handler.
  * 
  * This is where the message is received and decoded.
@@ -136,6 +147,79 @@ ISR(HE_TIMER_CAPT_vect)
 			
 			sender = 0;
 			recipient = 0;
+		}
+		else if(latchStage == 1 && bbsb2011)
+		{ // bbsb2011 protocol data
+			
+			bitCount++;
+			
+			if (pulseWidth > 280 && pulseWidth < 340)
+			{
+				bit = 0;
+			}
+			else if(pulseWidth > 850 && pulseWidth < 950)
+			{
+				bit = 1;
+			}
+			else
+			{ // start over if the pulse was out of range
+			
+				latchStage = 0;
+				bitCount = 0;
+				bbsb2011 = false;
+				
+				sender = 0;
+				recipient = 0;
+				command = 0;
+			}
+			
+			if(bitCount < 17)
+			{
+				sender <<= 1;
+				sender |= bit;
+			}
+			else if(bitCount < 22)
+			{
+				command <<= 1;
+				command |= bit;
+			}
+			else if(bitCount < 25)
+			{
+				recipient <<= 1;
+				recipient |= bit;
+			}
+
+			if(bitCount == 25)
+			{	// message is complete
+			
+				if(command == 0x14 || command == 0x15)
+				{
+					if(HomeEasy::bbsb2011ProtocolHandler != NULL)
+					{
+						if(recipient > 1)
+						{
+							if(recipient & 0x01)
+							{ recipient = 4 - (recipient >> 1);
+							}
+							else
+							{ recipient = 7 - (recipient >> 1);
+							}
+						}
+						else
+						{ recipient = 0;
+						}
+						HomeEasy::bbsb2011ProtocolHandler((int)sender, recipient, (command == 0x15), (recipient == 1));
+					}
+				}
+				
+				latchStage = 0;
+				bitCount = 0;
+				bbsb2011 = false;
+				
+				sender = 0;
+				recipient = 0;
+				command = 0;
+			}
 		}
 		else if(latchStage == 1)
 		{	// simple protocol data
@@ -204,6 +288,11 @@ ISR(HE_TIMER_CAPT_vect)
 		{	// pause between messages
 		
 			latchStage = 1;
+		}
+		else if(latchStage == 0 && pulseWidth > 8500 && pulseWidth < 9480)
+		{ // pause between bbsb2011 messages
+			latchStage = 1;
+			bbsb2011 = true;
 		}
 		else if(latchStage == 2 && pulseWidth > 2550 && pulseWidth < 2750)
 		{	// advanced protocol latch
@@ -344,6 +433,44 @@ void HomeEasy::sendAdvancedProtocolMessage(unsigned long s, unsigned int r, bool
 	initSending();
 }
 
+/**
+ *
+ */
+void HomeEasy::sendBBSB2011Message(unsigned int s, unsigned int r, bool c, bool g) {
+	// disable all interrupts
+	HE_TIMSK = 0;
+	
+	// reset variables
+	messageCount = 0;
+	latchStage = 0;
+	bitCount = 0;
+	bit = 0;
+	prevBit = 0;
+	pulseWidth = 10000;
+	
+	// set data to transmit
+	sender = s;
+	if (g)
+	{
+		recipient = 1;
+	}
+	else if (r & 0x4)
+	{
+		recipient = 14 - (2 * r);
+	}
+	else
+	{
+		recipient = 9 - (2 * r);
+	}
+	command = c;
+	
+	// specify encoding
+	messageType = MESSAGE_TYPE_BBSB2011;
+	
+	// start the timer interrupt
+	initSending();
+}
+
 
 /**
  * The timer interrupt handler.
@@ -394,7 +521,7 @@ ISR(HE_TIMER_COMPA_vect)
 			
 			pulseWidth = 10000;
 			
-			if(messageCount == 5)
+			if(messageCount == TRANSMITTER_MESSAGE_COUNT)
 			{	// go back to receiving
 				
 				messageCount = 0;
@@ -497,7 +624,7 @@ ISR(HE_TIMER_COMPA_vect)
 		
 		prevBit = !prevBit;
 
-		if(messageCount == 5)
+		if(messageCount == TRANSMITTER_MESSAGE_COUNT)
 		{	// go back to receiving
 			
 			messageCount = 0;
@@ -507,6 +634,76 @@ ISR(HE_TIMER_COMPA_vect)
 			HE_TIMSK = _BV(HE_ICIE);
 			
 			return;
+		}
+	}
+	else if(messageType == MESSAGE_TYPE_BBSB2011)
+	{
+		if(!prevBit && bitCount != 25)
+		{
+			HE_TXPORT |= _BV(HETXPIN);
+		}
+		else
+		{
+			HE_TXPORT &= ~_BV(HETXPIN);
+		}
+		
+		if(bitCount < 16)
+		{	// sender
+			bit = (((sender << bitCount) & 0x8000) != 0);
+		}
+		else if(bitCount < 20)
+		{ // 1010
+			bit = ((0x5 & _BV(bitCount - 16)) != 0);
+		}
+		else if(bitCount < 21)
+		{	// command
+			bit = command;
+		}
+		else if(bitCount < 24)
+		{	// recipient
+			bit = (((recipient << (bitCount - 21)) & 0x4) != 0);
+		}
+		else if(bitCount < 25)
+		{ // 0
+			bit = 0;
+		}
+		
+		if(bitCount == 25)
+		{	// message finished
+			bitCount = 0;
+			messageCount++;
+			
+			pulseWidth = 10000;
+			
+			if(messageCount == TRANSMITTER_MESSAGE_COUNT)
+			{	// go back to receiving
+				
+				messageCount = 0;
+				
+				HE_TCCRA = 0x00;
+				HE_TCCRB = 0x02;
+				HE_TIMSK = _BV(HE_ICIE);
+				
+				return;
+			}
+		}
+		else
+		{
+			if(prevBit && bit || !prevBit && !bit)
+			{
+				pulseWidth = 300;
+			}
+			else
+			{
+				pulseWidth = 900;
+			}
+			
+			if(prevBit)
+			{
+				bitCount++;
+			}
+			
+			prevBit = !prevBit;
 		}
 	}
 	
