@@ -125,7 +125,7 @@ void sendSimpleMessage()
       }
       else
       {
-        Serial.println(sender + 65, BYTE);
+        Serial.write(sender + 65);
         break;
       }
     }
