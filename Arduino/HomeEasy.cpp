@@ -68,14 +68,17 @@ void HomeEasy::init() {
  * Reconfigure the interrupts for sending a message.
  */
 void HomeEasy::initSending() {
+  // reset counter
+  HE_TCNT = 0;
+
   // ensure the transmitter pin is set for output
   HE_TXDDR |= _BV(HETXPIN);
 
   // the value that the timer will count up to before firing the interrupt
   HE_OCRA = (pulseWidth * 2);
 
-  // toggle OCxA on compare match
-  HE_TCCRA = _BV(HE_COMA0);
+  // do not toggle OCxA on compare match, do it manually otherwise we get out of sync
+  HE_TCCRA = 0;
 
   // CTC mode: top of HE_OCRA, immediate update of HE_OCRA, TOVx flag set on MAX
   HE_TCCRB |= _BV(HE_WGM2);
