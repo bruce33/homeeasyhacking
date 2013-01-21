@@ -2,31 +2,17 @@
 * HomeEasy Library
 *
 * Usage notes : 
-*     By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts).  On your Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 
-*     There is a degree of configurability for the transmission pin.  We use PORTB, so you must choose a pin on that PORT (PB*) from http://www.arduino.cc/en/Hacking/PinMapping168
-*     To configure the transmitter data pin, define HETXPIN to the pin of choice from PB*
+*     By default the library is hooked up to a fixed set of pins (for the benefit of the interrupts) and configured for a standard Arduino.
+*
+*     On a standard Arduino, you should connect the transmitter data to pin 13 and the receiver data to pin 8 
+*      - The transmission pin is configurable, by editing HomeEasyDefines.h - see http://www.arduino.cc/en/Hacking/PinMapping168 to select a port and pin
+*
+*     On an Arduino Mega, you should connect the transmitter data to pin 43 and the receiver data to pin 49
+*      - The receiving pin is configurable, by editing HomeEasyDefines.h - selecting HETIMER4 selects pin 49, and HETIMER5 selects pin 48
+*      - The transmission pin is configurable, by editing HomeEasyDefines.h - see http://arduino.cc/en/uploads/Main/arduino-mega2560-schematic.pdf to select a port and pin
 */
+#include "HomeEasyDefines.h"
 #include "HomeEasy.h"
-
-// for backwards compatibility
-#ifndef PINB0
-  #define PINB0 PB0
-#endif
-#ifndef PINB5
-  #define PINB5 PB5
-#endif
-
-#ifndef HETXPIN
-	#define HETXPIN PINB5
-#endif
-#ifndef HERXPIN
-	#define HERXPIN PINB0
-#endif
-
-#define TRANSMITTER_MESSAGE_COUNT 5
-
-#define MESSAGE_TYPE_SIMPLE 0
-#define MESSAGE_TYPE_ADVANCED 1
 
 // variables used for receiving the messages
 unsigned int pulseWidth = 0;
@@ -67,17 +53,17 @@ HomeEasy::HomeEasy()
 void HomeEasy::init()
 {
 	// ensure the receiver pin is set for input
-	DDRB &= ~_BV(HERXPIN);
+	HE_RXDDR &= ~_BV(HE_RXPIN);
 	
 	// disable PWM (default)
-	TCCR1A = 0x00;
+	HE_TCCRA = 0x00;
 	
-	// set prescaler to 1/8.  TCNT1 increments every 0.5 micro seconds
+	// set prescaler to 1/8.  HE_TCNT increments every 0.5 micro seconds
 	// falling edge used as trigger
-	TCCR1B = 0x02;
+	HE_TCCRB = 0x02;
 	
-	// enable input capture interrupt for timer 1
-	TIMSK1 = _BV(ICIE1);
+	// enable input capture interrupt for HETIMER
+	HE_TIMSK = _BV(HE_ICIE);
 }
 
 
@@ -87,19 +73,19 @@ void HomeEasy::init()
 void HomeEasy::initSending()
 {
 	// ensure the transmitter pin is set for output
-	DDRB |= _BV(HETXPIN);
+	HE_TXDDR |= _BV(HETXPIN);
 	
 	// the value that the timer will count up to before firing the interrupt
-	OCR1A = (pulseWidth * 2);
+	HE_OCRA = (pulseWidth * 2);
 
-	// toggle OC1A on compare match
-	TCCR1A = _BV(COM1A0);
+	// toggle OCxA on compare match
+	HE_TCCRA = _BV(HE_COMA0);
 
-	// CTC mode: top of OCR1A, immediate update of OCR1A, TOV1 flag set on MAX
-	TCCR1B |= _BV(WGM12);
+	// CTC mode: top of HE_OCRA, immediate update of HE_OCRA, TOVx flag set on MAX
+	HE_TCCRB |= _BV(HE_WGM2);
 
-	// enable timer interrupt for timer 1, disable input capture interrupt
-	TIMSK1 = _BV(OCIE1A);
+	// enable timer interrupt for HETIMER, disable input capture interrupt
+	HE_TIMSK = _BV(HE_OCIEA);
 }
 
 
@@ -126,15 +112,15 @@ void HomeEasy::registerAdvancedProtocolHandler(void(*handler)(unsigned long, uns
  * 
  * This is where the message is received and decoded.
  */
-ISR(TIMER1_CAPT_vect)
+ISR(HE_TIMER_CAPT_vect)
 {
 	// reset counter
-	TCNT1 = 0;
+	HE_TCNT = 0;
 	
 	// get value of input compare register, divide by two to get microseconds
-	pulseWidth = (ICR1 / 2);
+	pulseWidth = (HE_ICR / 2);
 	
-	if(bit_is_clear(TCCR1B, ICES1))
+	if(bit_is_clear(HE_TCCRB, HE_ICES))
 	{	// falling edge was detected, HIGH pulse end
 		
 		if(latchStage == 1 && pulseWidth > 230 && pulseWidth < 280)
@@ -156,11 +142,11 @@ ISR(TIMER1_CAPT_vect)
 			
 			bitCount++;
 			
-			if(pulseWidth > 320 && pulseWidth < 430)
+			if(pulseWidth > 280 && pulseWidth < 430) // Relaxed from 320<x<430
 			{
 				bit = 0;
 			}
-			else if(pulseWidth > 1030 && pulseWidth < 1150 && bitCount % 2 == 0)
+			else if(pulseWidth > 975 && pulseWidth < 1150 && bitCount % 2 == 0) // Relaxed from 1030<x<1150
 			{
 				bit = 0x08;
 			}
@@ -296,7 +282,7 @@ ISR(TIMER1_CAPT_vect)
 	}
 	
 	// toggle bit value to trigger on the other edge
-	TCCR1B ^= _BV(ICES1);
+	HE_TCCRB ^= _BV(HE_ICES);
 }
 
 
@@ -306,7 +292,7 @@ ISR(TIMER1_CAPT_vect)
 void HomeEasy::sendSimpleProtocolMessage(unsigned int s, unsigned int r, bool c)
 {
 	// disable all interrupts
-	TIMSK1 = 0;
+	HE_TIMSK = 0;
 	
 	// reset variables
 	messageCount = 0;
@@ -335,7 +321,7 @@ void HomeEasy::sendSimpleProtocolMessage(unsigned int s, unsigned int r, bool c)
 void HomeEasy::sendAdvancedProtocolMessage(unsigned long s, unsigned int r, bool c, bool g)
 {
 	// disable all interrupts
-	TIMSK1 = 0;
+	HE_TIMSK = 0;
 	
 	// reset variables
 	messageCount = 0;
@@ -370,17 +356,17 @@ void HomeEasy::sendAdvancedProtocolMessage(unsigned long s, unsigned int r, bool
  * 
  * Once the message has been transmitted this class will switch back to receiving.
  */
-ISR(TIMER1_COMPA_vect)
+ISR(HE_TIMER_COMPA_vect)
 {
 	if(messageType == MESSAGE_TYPE_SIMPLE)
 	{
 		if(!prevBit && bitCount != 25)
 		{
-			PORTB |= _BV(HETXPIN);
+			HE_TXPORT |= _BV(HETXPIN);
 		}
 		else
 		{
-			PORTB &= ~_BV(HETXPIN);
+			HE_TXPORT &= ~_BV(HETXPIN);
 		}
 		
 		if(bitCount % 2 == 0)
@@ -413,9 +399,9 @@ ISR(TIMER1_COMPA_vect)
 				
 				messageCount = 0;
 				
-				TCCR1A = 0x00;
-				TCCR1B = 0x02;
-				TIMSK1 = _BV(ICIE1);
+				HE_TCCRA = 0x00;
+				HE_TCCRB = 0x02;
+				HE_TIMSK = _BV(HE_ICIE);
 				
 				return;
 			}
@@ -443,11 +429,11 @@ ISR(TIMER1_COMPA_vect)
 	{
 		if(!prevBit)
 		{
-			PORTB |= _BV(HETXPIN);
+			HE_TXPORT |= _BV(HETXPIN);
 		}
 		else
 		{
-			PORTB &= ~_BV(HETXPIN);
+			HE_TXPORT &= ~_BV(HETXPIN);
 		}
 		
 		if(!prevBit)
@@ -516,14 +502,14 @@ ISR(TIMER1_COMPA_vect)
 			
 			messageCount = 0;
 			
-			TCCR1A = 0x00;
-			TCCR1B = 0x02;
-			TIMSK1 = _BV(ICIE1);
+			HE_TCCRA = 0x00;
+			HE_TCCRB = 0x02;
+			HE_TIMSK = _BV(HE_ICIE);
 			
 			return;
 		}
 	}
 	
 	// set the next delay
-	OCR1A = (pulseWidth * 2);
+	HE_OCRA = (pulseWidth * 2);
 }
